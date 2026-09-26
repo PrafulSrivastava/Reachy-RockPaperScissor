@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reachy_mini_rps"
+version = "0.1.0"
+description = "Realtime rock-paper-scissors for Reachy Mini"
+requires-python = ">=3.10"
+dependencies = [
+    "reachy-mini",
+    # 1.0.x aborts while opening the hand graph on macOS. 0.10.35 runs.
+    "mediapipe==0.10.35",
+    "numpy",
+    "pillow",
+]
+keywords = ["reachy-mini-app"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.entry-points."reachy_mini_apps"]
+reachy_mini_rps = "reachy_mini_rps.main:RockPaperScissorsApp"
+
+[tool.setuptools]
+package-dir = { "" = "." }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["reachy_mini_rps*"]
+
+[tool.setuptools.package-data]
+reachy_mini_rps = ["assets/*", "static/*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

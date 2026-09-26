@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reachy Mini — Rock Paper Scissors</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #121417;
+      --card: #1c2128;
+      --text: #f2f4f7;
+      --muted: #a7b0bb;
+      --line: #2d3540;
+      --accent: #7dcea0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", Palatino, Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 3rem;
+    }
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      margin: 0 0 0.25rem;
+    }
+    p { line-height: 1.45; }
+    .lede { color: var(--muted); margin-top: 0; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      margin: 1rem 0;
+    }
+    .score {
+      display: flex;
+      gap: 1.5rem;
+      font-size: 1.4rem;
+    }
+    .label {
+      display: block;
+      color: var(--muted);
+      font-family: system-ui, sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    img {
+      display: block;
+      width: auto;
+      height: auto;
+      max-width: 100%;
+      max-height: 70vh;
+      margin: 0 auto;
+      object-fit: contain;
+      background: #000;
+      border-radius: 8px;
+    }
+    .actions { display: flex; gap: 0.75rem; margin-top: 1rem; }
+    button {
+      font-family: system-ui, sans-serif;
+      font-size: 1rem;
+      padding: 0.55rem 1.1rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--accent);
+      color: #102117;
+      border-color: transparent;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Rock, paper, scissors</h1>
+    <p class="lede">Show a hand to the laptop camera. Say anything, or press Play. Throw when Reachy says shoot.</p>
+    <section class="card">
+      <div class="score">
+        <div><span class="label">You</span><span id="player">0</span></div>
+        <div><span class="label">Reachy</span><span id="reachy">0</span></div>
+      </div>
+      <p id="phase">Waiting for you</p>
+      <p id="throws"></p>
+      <p id="announcement"></p>
+    </section>
+    <section class="card">
+      <img id="frame" src="/frame.jpg" alt="Latest camera frame">
+    </section>
+    <div class="actions">
+      <button class="primary" id="play" type="button">Play</button>
+      <button id="stop" type="button">Stop</button>
+    </div>
+  </main>
+  <script>
+    const phase = document.getElementById("phase");
+    const player = document.getElementById("player");
+    const reachy = document.getElementById("reachy");
+    const throws = document.getElementById("throws");
+    const announcement = document.getElementById("announcement");
+    const frame = document.getElementById("frame");
+
+    const phaseText = {
+      idle: "Waiting for you",
+      countdown: "Get ready",
+      snap: "Reading your hand",
+      reveal: "Calling the round"
+    };
+
+    async function refresh() {
+      const state = await fetch("/state").then((response) => response.json());
+      player.textContent = state.player_score;
+      reachy.textContent = state.reachy_score;
+      phase.textContent = phaseText[state.phase] || state.phase;
+      const yours = state.player_throw || "—";
+      const mine = state.reachy_throw || "—";
+      const result = state.last_result ? "  ·  " + state.last_result.replaceAll("_", " ") : "";
+      throws.textContent = "You " + yours + "  ·  Reachy " + mine + result;
+      if (state.announcement === "you_win_match") {
+        announcement.textContent = "You won the match.";
+      } else if (state.announcement === "i_win_match") {
+        announcement.textContent = "Reachy won the match.";
+      } else {
+        announcement.textContent = "";
+      }
+    }
+
+    let frameBusy = false;
+    async function refreshFrame() {
+      if (frameBusy) return;
+      frameBusy = true;
+      try {
+        const response = await fetch("/frame.jpg?t=" + Date.now());
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const previous = frame.src;
+        frame.src = url;
+        if (previous.startsWith("blob:")) URL.revokeObjectURL(previous);
+      } finally {
+        frameBusy = false;
+      }
+    }
+
+    document.getElementById("play").addEventListener("click", () => {
+      fetch("/play", { method: "POST" });
+    });
+    document.getElementById("stop").addEventListener("click", () => {
+      fetch("/stop", { method: "POST" });
+    });
+    refresh();
+    refreshFrame();
+    setInterval(refresh, 500);
+    setInterval(refreshFrame, 80);
+  </script>
+</body>
+</html>
