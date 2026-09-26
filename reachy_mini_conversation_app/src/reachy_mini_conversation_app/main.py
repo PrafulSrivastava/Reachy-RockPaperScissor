@@ -319,6 +319,27 @@ def run(
 
     # Each async service → its own thread/loop
     movement_manager.start()
+
+    def enter_activity() -> None:
+        """Give the microphone, speaker, and head to a foreground activity."""
+        stream_manager.suspend_for_activity()
+        movement_manager.stop(reset_to_neutral=False)
+        try:
+            robot.disable_wobbling()
+        except Exception as exc:
+            logger.debug("Failed to disable wobbling for an activity: %s", exc)
+
+    def exit_activity() -> None:
+        """Return the microphone, speaker, and head to the conversation."""
+        try:
+            robot.enable_wobbling()
+        except Exception as exc:
+            logger.debug("Failed to enable wobbling after an activity: %s", exc)
+        movement_manager.start()
+        stream_manager.resume_from_activity()
+
+    deps.enter_activity = enter_activity
+    deps.exit_activity = exit_activity
     # Audio-reactive head motion is driven by the daemon's wobbler, which
     # taps the media pipeline at push_audio_sample. The console stream pushes
     # assistant audio through that pipeline directly.

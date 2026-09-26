@@ -37,7 +37,7 @@ _BLANK_JPEG = _blank_jpeg()
 
 
 class RockPaperScissorsApp(ReachyMiniApp):
-    """First-to-three rock-paper-scissors. Reachy throws with its head and antennas."""
+    """Three-turn rock-paper-scissors. Reachy throws with its head and antennas."""
 
     custom_app_url: str | None = "http://0.0.0.0:8042"
     request_media_backend: str | None = None
@@ -53,10 +53,27 @@ class RockPaperScissorsApp(ReachyMiniApp):
         self._label_seq = 0
 
     def run(self, reachy_mini: ReachyMini, stop_event: threading.Event) -> None:
+        self._play(reachy_mini, stop_event, one_match=False)
+
+    def play_one_match(self, reachy_mini: ReachyMini, stop_event: threading.Event) -> dict[str, object]:
+        """Play one three-turn match on a robot the caller already owns."""
+        return self._play(reachy_mini, stop_event, one_match=True)
+
+    def _play(
+        self,
+        reachy_mini: ReachyMini,
+        stop_event: threading.Event,
+        *,
+        one_match: bool,
+    ) -> dict[str, object]:
         game = Game()
         tracker = HandTracker()
-        self._install_routes(game)
-        reachy_mini.media.start_recording()
+        result: dict[str, object] = {"status": "stopped"}
+        if not one_match:
+            self._install_routes(game)
+            reachy_mini.media.start_recording()
+        else:
+            game.request_play()
         laptop: LaptopCamera | None = None
         preview: threading.Thread | None = None
         detector: threading.Thread | None = None
@@ -91,7 +108,10 @@ class RockPaperScissorsApp(ReachyMiniApp):
                 elif game.phase == "snap":
                     self._snap(game, stop_event)
                 elif game.phase == "reveal":
-                    self._reveal(reachy_mini, game, stop_event)
+                    summary = self._reveal(reachy_mini, game, stop_event)
+                    if one_match and summary is not None:
+                        result = summary
+                        break
         finally:
             stop_event.set()
             if preview is not None:
@@ -101,7 +121,9 @@ class RockPaperScissorsApp(ReachyMiniApp):
             if laptop is not None:
                 laptop.close()
             tracker.close()
-            reachy_mini.media.stop_recording()
+            if not one_match:
+                reachy_mini.media.stop_recording()
+        return result
 
     def _preview_loop(
         self,
@@ -239,7 +261,15 @@ class RockPaperScissorsApp(ReachyMiniApp):
         game.finish_snap(voted)
         matrix.notify(game)
 
-    def _reveal(self, reachy_mini: ReachyMini, game: Game, stop_event: threading.Event) -> None:
+    def _reveal(
+        self,
+        reachy_mini: ReachyMini,
+        game: Game,
+        stop_event: threading.Event,
+    ) -> dict[str, object] | None:
+        player_score = game.score.player
+        reachy_score = game.score.reachy
+        finished = game.match_over
         clips = game.reveal_clips()
         pose_name = game.reaction_pose()
         start = 0
@@ -253,6 +283,20 @@ class RockPaperScissorsApp(ReachyMiniApp):
                 break
             speech.say(reachy_mini.media, clip)
         game.back_to_idle()
+        if not finished:
+            return None
+        if player_score == reachy_score:
+            winner = "tie"
+        elif player_score > reachy_score:
+            winner = "player"
+        else:
+            winner = "reachy"
+        return {
+            "status": "match_over",
+            "winner": winner,
+            "player_score": player_score,
+            "reachy_score": reachy_score,
+        }
 
     def _play_reaction(self, reachy_mini: ReachyMini, pose_name: str) -> None:
         head, antennas = pose_for(pose_name)

@@ -45,6 +45,62 @@ async def _wait_until(predicate: Any, timeout: float = 1.0) -> None:
     raise AssertionError("Timed out waiting for condition")
 
 
+@pytest.mark.asyncio
+async def test_record_loop_leaves_the_mic_alone_while_an_activity_runs() -> None:
+    """A foreground activity, such as rock-paper-scissors, reads the mic itself."""
+    pulled: list[int] = []
+
+    def get_audio_sample() -> np.ndarray:
+        pulled.append(1)
+        return np.zeros(8, dtype=np.int16)
+
+    robot = SimpleNamespace(
+        media=SimpleNamespace(
+            get_audio_sample=get_audio_sample,
+            get_input_audio_samplerate=lambda: 16000,
+            audio=SimpleNamespace(clear_player=MagicMock()),
+        )
+    )
+    handler = MagicMock()
+    handler.receive = AsyncMock()
+    stream = LocalStream(handler, robot)
+    stream.suspend_for_activity()
+
+    task = asyncio.create_task(stream.record_loop())
+    await asyncio.sleep(0.12)
+    stream._stop_event.set()
+    await task
+
+    assert pulled == []
+    assert handler.receive.await_count > 0
+    for call in handler.receive.await_args_list:
+        _rate, samples = call.args[0]
+        assert np.all(samples == 0)
+
+
+@pytest.mark.asyncio
+async def test_play_loop_drops_assistant_audio_while_an_activity_runs() -> None:
+    """Assistant speech queued during a match should not reach the speaker."""
+    pushed: list[np.ndarray] = []
+    audio = np.ones(4, dtype=np.int16)
+
+    async def emit() -> tuple[int, np.ndarray]:
+        return (24000, audio)
+
+    handler = MagicMock()
+    handler.emit = emit
+    robot = SimpleNamespace(media=SimpleNamespace(push_audio_sample=pushed.append, audio=None))
+    stream = LocalStream(handler, robot)
+    stream.suspend_for_activity()
+
+    task = asyncio.create_task(stream.play_loop())
+    await asyncio.sleep(0.05)
+    stream._stop_event.set()
+    await task
+
+    assert pushed == []
+
+
 def test_clear_audio_queue_prefers_clear_player() -> None:
     """clear_player() is the canonical flush and is used whenever available."""
     handler = MagicMock()

@@ -12,6 +12,7 @@ default_tools = [
   "remember",
   "forget",
   "head_tracking",
+  "play_rock_paper_scissors",
 ]
 +++
 

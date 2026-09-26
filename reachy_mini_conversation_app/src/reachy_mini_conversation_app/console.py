@@ -8,6 +8,7 @@ import os
 import time
 import asyncio
 import logging
+import threading
 from typing import Any, List, Optional
 from pathlib import Path
 from collections.abc import Callable
@@ -128,6 +129,7 @@ class LocalStream:
         self._settings_initialized = False
         self._asyncio_loop = None
         self._mic_muted = False  # mic starts live; the UI toggles it via the settings API
+        self._activity = threading.Event()
         self._backend_connection_state = "not_started"
         self._backend_error: str | None = None
         self._backend_retry_delay = BACKEND_RETRY_DELAY_SECONDS
@@ -840,6 +842,18 @@ class LocalStream:
             if not task.done():
                 loop.call_soon_threadsafe(task.cancel)
 
+    def suspend_for_activity(self) -> None:
+        """Stop forwarding the mic and assistant speech so another activity can use them."""
+        self._activity.set()
+        audio = getattr(self._robot.media, "audio", None)
+        clear_player = getattr(audio, "clear_player", None)
+        if callable(clear_player):
+            clear_player()
+
+    def resume_from_activity(self) -> None:
+        """Return the mic and speaker to the conversation."""
+        self._activity.clear()
+
     def clear_audio_queue(self) -> None:
         """Flush queued playback audio immediately on user barge-in.
 
@@ -877,6 +891,13 @@ class LocalStream:
         logger.debug(f"Audio recording started at {input_sample_rate} Hz")
 
         while not self._stop_event.is_set():
+            if self._activity.is_set():
+                # Keep the realtime session warm without forwarding the room mic.
+                rate = self._robot.media.get_input_audio_samplerate()
+                silence = np.zeros(max(1, int(rate * 0.02)), dtype=np.int16)
+                await self.handler.receive((rate, silence))
+                await asyncio.sleep(0.02)
+                continue
             audio_frame = self._robot.media.get_audio_sample()
             if audio_frame is not None and not self._mic_muted:
                 await self.handler.receive((input_sample_rate, audio_frame))
@@ -903,6 +924,9 @@ class LocalStream:
                         )
 
             elif isinstance(handler_output, tuple):
+                if self._activity.is_set():
+                    await asyncio.sleep(0)
+                    continue
                 _, audio_data = handler_output
 
                 # Skip empty audio frames

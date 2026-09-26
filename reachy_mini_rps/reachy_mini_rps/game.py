@@ -1,9 +1,9 @@
-"""Round state for a first-to-three match."""
+"""Round state for a three-turn match."""
 
 import threading
 from typing import Callable
 
-from reachy_mini_rps.rules import TARGET, Result, Score, Throw, judge, match_reached
+from reachy_mini_rps.rules import Result, Score, Throw, judge, match_clip, match_reached
 
 
 Phase = str
@@ -71,6 +71,7 @@ class Game:
             self.score.player += 1
         elif result == "reachy":
             self.score.reachy += 1
+        self.score.turns += 1
         self.match_over = match_reached(self.score)
         self.phase = "reveal"
 
@@ -88,10 +89,7 @@ class Game:
             clips.append({"player": "you_win", "reachy": "i_win", "tie": "tie"}[self.last_result])
         clips.append(f"score_{self.score.player}_{self.score.reachy}")
         if self.match_over:
-            if self.score.player >= TARGET:
-                clips.append("you_win_match")
-            else:
-                clips.append("i_win_match")
+            clips.append(match_clip(self.score))
         return clips
 
     def reaction_pose(self) -> str:
@@ -112,10 +110,7 @@ class Game:
 
     def _back_to_idle(self) -> None:
         if self.match_over:
-            if self.score.player >= TARGET:
-                self.announcement = "you_win_match"
-            else:
-                self.announcement = "i_win_match"
+            self.announcement = match_clip(self.score)
             self.score.reset()
             self.match_over = False
         self.reachy_throw = None

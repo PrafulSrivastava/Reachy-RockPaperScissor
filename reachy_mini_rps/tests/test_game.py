@@ -84,6 +84,24 @@ def test_reaching_three_sets_match_over() -> None:
     assert game.announcement == "you_win_match"
 
 
+def test_three_turns_end_even_when_the_score_is_level() -> None:
+    game = Game(choose=lambda: "rock")
+    game.begin_round()
+    game.finish_snap("scissors")
+    assert game.match_over is False
+    game.back_to_idle()
+    game.begin_round()
+    game.finish_snap("paper")
+    assert game.match_over is False
+    game.back_to_idle()
+    game.begin_round()
+    game.finish_snap("rock")
+    assert game.score.player == 1
+    assert game.score.reachy == 1
+    assert game.match_over is True
+    assert game.reveal_clips()[-1] == "tie"
+
+
 def test_reachy_match_announcement() -> None:
     game = Game(choose=lambda: "paper")
     for _ in range(3):

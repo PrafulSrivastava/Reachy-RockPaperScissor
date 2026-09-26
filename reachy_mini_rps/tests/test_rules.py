@@ -1,6 +1,6 @@
 import pytest
 
-from reachy_mini_rps.rules import TARGET, Score, judge, match_reached
+from reachy_mini_rps.rules import TURNS, Score, judge, match_clip, match_reached
 
 
 PAIRS = [
@@ -21,14 +21,16 @@ def test_judge_each_pair(player: str, reachy: str, expected: str) -> None:
     assert judge(player, reachy) == expected
 
 
-def test_first_to_three_transition() -> None:
+def test_match_ends_after_three_turns() -> None:
     score = Score()
     assert match_reached(score) is False
-    score.player = TARGET - 1
+    score.player = 2
+    score.turns = TURNS - 1
     assert match_reached(score) is False
-    score.player = TARGET
+    score.turns = TURNS
     assert match_reached(score) is True
+    assert match_clip(score) == "you_win_match"
 
-    other = Score()
-    other.reachy = TARGET
-    assert match_reached(other) is True
+    tied = Score(player=1, reachy=1, turns=TURNS)
+    assert match_reached(tied) is True
+    assert match_clip(tied) == "tie"
