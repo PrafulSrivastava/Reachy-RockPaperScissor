@@ -12,6 +12,7 @@ dependencies = [
     # 1.0.x aborts while opening the hand graph on macOS. 0.10.35 runs.
     "mediapipe==0.10.35",
     "numpy",
+    "paho-mqtt>=2.0",
     "pillow",
 ]
 keywords = ["reachy-mini-app"]

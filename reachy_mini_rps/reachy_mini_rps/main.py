@@ -16,7 +16,7 @@ from reachy_mini_rps.gestures import majority
 from reachy_mini_rps.hand_tracker import HandTracker, jpeg_with_points
 from reachy_mini_rps.laptop_camera import LaptopCamera
 from reachy_mini_rps.poses import pose_for
-from reachy_mini_rps import speech
+from reachy_mini_rps import matrix, speech
 from reachy_mini_rps.voice import voice_active
 
 
@@ -237,6 +237,7 @@ class RockPaperScissorsApp(ReachyMiniApp):
         voted = majority(labels)
         logger.info("Snap labels=%s vote=%s", labels, voted)
         game.finish_snap(voted)
+        matrix.notify(game)
 
     def _reveal(self, reachy_mini: ReachyMini, game: Game, stop_event: threading.Event) -> None:
         clips = game.reveal_clips()
